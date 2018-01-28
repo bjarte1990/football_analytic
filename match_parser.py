@@ -14,7 +14,7 @@ LINK = 'http://www.pro-football-reference.com'
 MATCHWEEK_LINK = LINK + '/years/{YEAR}/week_{WEEK}.htm'
 
 YEARS = range(2017, 2018)
-WEEKS = range(1,18)
+WEEKS = range(1,2)
 
 
 def split_list(seq, num=THREADNUM):
@@ -91,74 +91,16 @@ def get_player_stats_from_rows(rows):
     return stats_list
 
 
-def get_offense_stats(offense):
-    table = get_commented_table_from_div(offense)
-    away, home = table.split('<tr class="thead">')
-    away_rows = re.findall('<tr >.*</tr>', away)
-    home_rows = re.findall('<tr >.*</tr>', home)
-    away_team_player_stats = get_player_stats_from_rows(away_rows)
-    home_team_player_stats = get_player_stats_from_rows(home_rows)
-
-    return {'away_team_offense_player_stats': away_team_player_stats,
-            'home_team_offense_player_stats': home_team_player_stats}
-
-
-def get_defense_stats(defense):
-    table = get_commented_table_from_div(defense)
-    away, home = table.split('<tr class="thead">')
-    away_rows = re.findall('<tr >.*</tr>', away)
-    home_rows = re.findall('<tr >.*</tr>', home)
-    away_team_player_stats = get_player_stats_from_rows(away_rows)
-    home_team_player_stats = get_player_stats_from_rows(home_rows)
-    return {'away_team_offense_player_stats': away_team_player_stats,
-            'home_team_offense_player_stats': home_team_player_stats}
-
-def get_pass_stats(targets):
-    table = get_commented_table_from_div(targets)
+def get_stats_from_table_div(table_div, stat_name):
+    table = get_commented_table_from_div(table_div)
     away, home = table.split('<tr class="thead">')
     away_rows = re.findall('<tr >.*</tr>', away)
     home_rows = re.findall('<tr >.*</tr>', home)
     away_team_player_stats = get_player_stats_from_rows(away_rows)
     home_team_player_stats = get_player_stats_from_rows(home_rows)
     return {
-        'away_team_passing_target_stats': away_team_player_stats,
-        'home_team_passing_target_stats': home_team_player_stats}
-
-def get_rush_direction_stats(rushes):
-    table = get_commented_table_from_div(rushes)
-    away, home = table.split('<tr class="thead">')
-    away_rows = re.findall('<tr >.*</tr>', away)
-    home_rows = re.findall('<tr >.*</tr>', home)
-    away_team_player_stats = get_player_stats_from_rows(away_rows)
-    home_team_player_stats = get_player_stats_from_rows(home_rows)
-    return {
-        'away_team_passing_target_stats': away_team_player_stats,
-        'home_team_passing_target_stats': home_team_player_stats}
-
-
-def get_pass_tackle_stats(pass_tackles):
-    table = get_commented_table_from_div(pass_tackles)
-    away, home = table.split('<tr class="thead">')
-    away_rows = re.findall('<tr >.*</tr>', away)
-    home_rows = re.findall('<tr >.*</tr>', home)
-    away_team_player_stats = get_player_stats_from_rows(away_rows)
-    home_team_player_stats = get_player_stats_from_rows(home_rows)
-    return {
-        'away_team_passing_target_stats': away_team_player_stats,
-        'home_team_passing_target_stats': home_team_player_stats}
-
-
-def get_rush_tackle_stats(rush_tackles):
-    table = get_commented_table_from_div(rush_tackles)
-    away, home = table.split('<tr class="thead">')
-    away_rows = re.findall('<tr >.*</tr>', away)
-    home_rows = re.findall('<tr >.*</tr>', home)
-    away_team_player_stats = get_player_stats_from_rows(away_rows)
-    home_team_player_stats = get_player_stats_from_rows(home_rows)
-    return {
-        'away_team_passing_target_stats': away_team_player_stats,
-        'home_team_passing_target_stats': home_team_player_stats}
-
+        'away_team_%s_stats' % stat_name : away_team_player_stats,
+        'home_team_%s_stats' % stat_name : home_team_player_stats}
 
 def get_data_from_match(match_link):
 
@@ -176,13 +118,13 @@ def get_data_from_match(match_link):
 
     scorebox_info =get_match_info_from_scorebox(scorebox)
     additional_info = get_additional_match_info(additional_div)
-    offense_player_stats = get_offense_stats(offense_div)
-    defense_player_stats = get_defense_stats(defense_div)
+    offense_player_stats = get_stats_from_table_div(offense_div, 'offense_player')
+    defense_player_stats = get_stats_from_table_div(defense_div, 'defense_player')
 
-    pass_stats = get_pass_stats(pass_div)
-    rush_direction_stats = get_rush_direction_stats(rush_div)
-    pass_tackle_stats = get_pass_tackle_stats(pass_tackles_div)
-    rush_tackle_stats = get_rush_tackle_stats(rush_tackles_div)
+    pass_stats = get_stats_from_table_div(pass_div, 'passing_target')
+    rush_direction_stats = get_stats_from_table_div(rush_div, 'rushing_direction')
+    pass_tackle_stats = get_stats_from_table_div(pass_tackles_div, 'pass_tackle')
+    rush_tackle_stats = get_stats_from_table_div(rush_tackles_div, 'rush_tackle')
 
     # add more individual stats
     match_info = {**scorebox_info, **additional_info}
