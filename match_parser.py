@@ -4,15 +4,16 @@ import urllib3
 import time
 import re
 import pprint
-import multiprocessing
+import threading
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 THREADNUM = 8
 
-LINK = 'https://www.pro-football-reference.com'
+LINK = 'http://www.pro-football-reference.com'
 MATCHWEEK_LINK = LINK + '/years/{YEAR}/week_{WEEK}.htm'
 
-YEARS = range(2015, 2018)
+YEARS = range(2017, 2018)
 WEEKS = range(1,18)
 
 
@@ -80,7 +81,7 @@ def get_additional_match_info(additional):
     return additional_info
 
 
-def get_offense_player_stats_from_rows(rows):
+def get_player_stats_from_rows(rows):
     stats_list = []
     for statline in rows:
         name_group = re.match('.*<a href=\"/players/./(.*).htm\">(.*)</a>.*', statline)
@@ -95,10 +96,68 @@ def get_offense_stats(offense):
     away, home = table.split('<tr class="thead">')
     away_rows = re.findall('<tr >.*</tr>', away)
     home_rows = re.findall('<tr >.*</tr>', home)
-    away_team_player_stats = get_offense_player_stats_from_rows(away_rows)
-    home_team_player_stats = get_offense_player_stats_from_rows(home_rows)
+    away_team_player_stats = get_player_stats_from_rows(away_rows)
+    home_team_player_stats = get_player_stats_from_rows(home_rows)
 
-    return {'away_team_player_stats': away_team_player_stats, 'home_team_player_stats': home_team_player_stats}
+    return {'away_team_offense_player_stats': away_team_player_stats,
+            'home_team_offense_player_stats': home_team_player_stats}
+
+
+def get_defense_stats(defense):
+    table = get_commented_table_from_div(defense)
+    away, home = table.split('<tr class="thead">')
+    away_rows = re.findall('<tr >.*</tr>', away)
+    home_rows = re.findall('<tr >.*</tr>', home)
+    away_team_player_stats = get_player_stats_from_rows(away_rows)
+    home_team_player_stats = get_player_stats_from_rows(home_rows)
+    return {'away_team_offense_player_stats': away_team_player_stats,
+            'home_team_offense_player_stats': home_team_player_stats}
+
+def get_pass_stats(targets):
+    table = get_commented_table_from_div(targets)
+    away, home = table.split('<tr class="thead">')
+    away_rows = re.findall('<tr >.*</tr>', away)
+    home_rows = re.findall('<tr >.*</tr>', home)
+    away_team_player_stats = get_player_stats_from_rows(away_rows)
+    home_team_player_stats = get_player_stats_from_rows(home_rows)
+    return {
+        'away_team_passing_target_stats': away_team_player_stats,
+        'home_team_passing_target_stats': home_team_player_stats}
+
+def get_rush_direction_stats(rushes):
+    table = get_commented_table_from_div(rushes)
+    away, home = table.split('<tr class="thead">')
+    away_rows = re.findall('<tr >.*</tr>', away)
+    home_rows = re.findall('<tr >.*</tr>', home)
+    away_team_player_stats = get_player_stats_from_rows(away_rows)
+    home_team_player_stats = get_player_stats_from_rows(home_rows)
+    return {
+        'away_team_passing_target_stats': away_team_player_stats,
+        'home_team_passing_target_stats': home_team_player_stats}
+
+
+def get_pass_tackle_stats(pass_tackles):
+    table = get_commented_table_from_div(pass_tackles)
+    away, home = table.split('<tr class="thead">')
+    away_rows = re.findall('<tr >.*</tr>', away)
+    home_rows = re.findall('<tr >.*</tr>', home)
+    away_team_player_stats = get_player_stats_from_rows(away_rows)
+    home_team_player_stats = get_player_stats_from_rows(home_rows)
+    return {
+        'away_team_passing_target_stats': away_team_player_stats,
+        'home_team_passing_target_stats': home_team_player_stats}
+
+
+def get_rush_tackle_stats(rush_tackles):
+    table = get_commented_table_from_div(rush_tackles)
+    away, home = table.split('<tr class="thead">')
+    away_rows = re.findall('<tr >.*</tr>', away)
+    home_rows = re.findall('<tr >.*</tr>', home)
+    away_team_player_stats = get_player_stats_from_rows(away_rows)
+    home_team_player_stats = get_player_stats_from_rows(home_rows)
+    return {
+        'away_team_passing_target_stats': away_team_player_stats,
+        'home_team_passing_target_stats': home_team_player_stats}
 
 
 def get_data_from_match(match_link):
@@ -107,14 +166,33 @@ def get_data_from_match(match_link):
     scorebox = match_soup.find('div', {'class': 'scorebox'})
     additional_div = match_soup.find('div', {'id': 'all_game_info'})
     offense_div = match_soup.find('div', {'id': 'all_player_offense'})
+    defense_div = match_soup.find('div', {'id': 'all_player_defense'})
+
+    pass_div = match_soup.find('div', {'id': 'all_targets_directions'})
+    rush_div = match_soup.find('div', {'id': 'all_rush_directions'})
+
+    pass_tackles_div = match_soup.find('div', {'id': 'all_pass_tackles'})
+    rush_tackles_div = match_soup.find('div', {'id': 'all_rush_tackles'})
 
     scorebox_info =get_match_info_from_scorebox(scorebox)
     additional_info = get_additional_match_info(additional_div)
-    player_stats = get_offense_stats(offense_div)
+    offense_player_stats = get_offense_stats(offense_div)
+    defense_player_stats = get_defense_stats(defense_div)
+
+    pass_stats = get_pass_stats(pass_div)
+    rush_direction_stats = get_rush_direction_stats(rush_div)
+    pass_tackle_stats = get_pass_tackle_stats(pass_tackles_div)
+    rush_tackle_stats = get_rush_tackle_stats(rush_tackles_div)
 
     # add more individual stats
     match_info = {**scorebox_info, **additional_info}
-    match_info = {**match_info, **player_stats}
+    match_info = {**match_info, **offense_player_stats}
+    match_info = {**match_info, **defense_player_stats}
+    match_info = {**match_info, **pass_stats}
+    match_info = {**match_info, **rush_direction_stats}
+    match_info = {**match_info, **pass_tackle_stats}
+    match_info = {**match_info, **rush_tackle_stats}
+
     return match_info
 
 
@@ -138,11 +216,13 @@ for year, week in product(YEARS, WEEKS):
     # code part for threading
     #
     game_links_splits = split_list(game_links)
-    manager = multiprocessing.Manager()
+    #manager = multiprocessing.Manager()
     threads = []
-    matches_by_week = manager.list()
+    matches_by_week = []
     for id in range(THREADNUM):
-        threads.append(multiprocessing.Process(target=get_info_for_thread, args=(game_links_splits.pop(), matches_by_week)))
+        threads.append(threading.Thread(target=get_info_for_thread,
+                                               args=(game_links_splits.pop(),
+                                                     matches_by_week)))
 
     _ = [thread.start() for thread in threads]
     _ = [thread.join() for thread in threads]
@@ -150,7 +230,7 @@ for year, week in product(YEARS, WEEKS):
     print('%s Week %s Done.' % (year, week))
 
 
-with open('2015_2017.data', 'w+') as out_file:
+with open('2017_regular_season.data', 'w+') as out_file:
     pp = pprint.PrettyPrinter(indent=4, stream=out_file)
     pp.pprint(all_matches)
 print(time.time()-start_time)
