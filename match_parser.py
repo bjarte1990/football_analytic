@@ -13,8 +13,8 @@ THREADNUM = 8
 LINK = 'http://www.pro-football-reference.com'
 MATCHWEEK_LINK = LINK + '/years/{YEAR}/week_{WEEK}.htm'
 
-YEARS = range(2017, 2018)
-WEEKS = range(1,2)
+YEARS = range(2013, 2018)
+WEEKS = range(1,18)
 
 
 def split_list(seq, num=THREADNUM):
@@ -91,22 +91,54 @@ def get_player_stats_from_rows(rows):
     return stats_list
 
 
-def get_stats_from_table_div(table_div, stat_name):
+def get_player_stats_from_table_div(table_div, label='', two_teams=True):
     table = get_commented_table_from_div(table_div)
-    away, home = table.split('<tr class="thead">')
-    away_rows = re.findall('<tr >.*</tr>', away)
-    home_rows = re.findall('<tr >.*</tr>', home)
-    away_team_player_stats = get_player_stats_from_rows(away_rows)
-    home_team_player_stats = get_player_stats_from_rows(home_rows)
-    return {
-        'away_team_%s_stats' % stat_name : away_team_player_stats,
-        'home_team_%s_stats' % stat_name : home_team_player_stats}
+    if two_teams:
+        away, home = table.split('<tr class="thead">')
+        away_rows = re.findall('<tr >.*</tr>', away)
+        home_rows = re.findall('<tr >.*</tr>', home)
+        away_team_player_stats = get_player_stats_from_rows(away_rows)
+        home_team_player_stats = get_player_stats_from_rows(home_rows)
+        return {
+            'away_team_%s_stats' % label: away_team_player_stats,
+            'home_team_%s_stats' % label: home_team_player_stats}
+    else:
+        team_rows = re.findall('<tr >.*</tr>', table)
+        team_player_stats = get_player_stats_from_rows(team_rows)
+        return {label: team_player_stats}
+
+def get_drive_stats(drive_div):
+    table = get_commented_table_from_div(drive_div)
+    team_rows = re.findall('<tr .*>.*</tr>', table)
+    drives = {}
+    for row in team_rows:
+        drive_num = re.findall('<th\s*scope=\"row\s*\"\s*class="right\s*\"\s*'
+                               'data-stat=\"drive_num\s*\"\s*>(.*)</th>', row)[0]
+        stats = re.findall('<td class=.*?data-stat=\"(.*?)\"\s*.*?>(.*?)</td>', row)
+        description, play_num = re.match('.*tip=\"(.*?)\">(.*?)</span>',
+                                         stats[3][1]).groups()
+        stats[3] = ('play_num', play_num)
+        stats.append(('plays_description', description))
+        drives[drive_num] = dict(stats)
+    return drives
+
+def get_team_stats(stats):
+    table = get_commented_table_from_div(stats)
+    rows = re.findall('<tr >.*</tr>', table.split('<tbody>')[1])
+    team_stats = {}
+    for row in rows:
+        stat_line = re.match('.*data-stat=\"stat\" >(.*?)</th>.*data-stat=\"vis_stat\" >'
+                             '(.*?)</td>.*data-stat=\"home_stat\" >(.*)</td></tr>', row)\
+            .groups()
+        team_stats[stat_line[0]] = {'away_team': stat_line[1], 'home_team': stat_line[2]}
+    return team_stats
 
 def get_data_from_match(match_link):
 
     match_soup = get_soup_from_link(match_link)
     scorebox = match_soup.find('div', {'class': 'scorebox'})
     additional_div = match_soup.find('div', {'id': 'all_game_info'})
+    team_stats_div = match_soup.find('div', {'id': 'all_team_stats'})
     offense_div = match_soup.find('div', {'id': 'all_player_offense'})
     defense_div = match_soup.find('div', {'id': 'all_player_defense'})
 
@@ -116,24 +148,46 @@ def get_data_from_match(match_link):
     pass_tackles_div = match_soup.find('div', {'id': 'all_pass_tackles'})
     rush_tackles_div = match_soup.find('div', {'id': 'all_rush_tackles'})
 
+    home_team_snapcounts_div = match_soup.find('div', {'id': 'all_home_snap_counts'})
+    away_team_snapcounts_div = match_soup.find('div', {'id': 'all_vis_snap_counts'})
+
+    home_team_drives_div = match_soup.find('div', {'id': 'all_home_drives'})
+    away_team_drives_div = match_soup.find('div', {'id': 'all_vis_drives'})
+
     scorebox_info =get_match_info_from_scorebox(scorebox)
     additional_info = get_additional_match_info(additional_div)
-    offense_player_stats = get_stats_from_table_div(offense_div, 'offense_player')
-    defense_player_stats = get_stats_from_table_div(defense_div, 'defense_player')
+    team_stats = get_team_stats(team_stats_div)
+    offense_player_stats = get_player_stats_from_table_div(offense_div, 'offense_player')
+    defense_player_stats = get_player_stats_from_table_div(defense_div, 'defense_player')
 
-    pass_stats = get_stats_from_table_div(pass_div, 'passing_target')
-    rush_direction_stats = get_stats_from_table_div(rush_div, 'rushing_direction')
-    pass_tackle_stats = get_stats_from_table_div(pass_tackles_div, 'pass_tackle')
-    rush_tackle_stats = get_stats_from_table_div(rush_tackles_div, 'rush_tackle')
+    pass_stats = get_player_stats_from_table_div(pass_div, 'passing_target')
+    rush_direction_stats = get_player_stats_from_table_div(rush_div, 'rushing_direction')
+    pass_tackle_stats = get_player_stats_from_table_div(pass_tackles_div, 'pass_tackle')
+    rush_tackle_stats = get_player_stats_from_table_div(rush_tackles_div, 'rush_tackle')
+
+    home_team_snapcount_stats = get_player_stats_from_table_div(home_team_snapcounts_div,
+                                                                label='home_team_snapcount_stats',
+                                                                two_teams=False)
+    away_team_snapcount_stats = get_player_stats_from_table_div(away_team_snapcounts_div,
+                                                                label='away_team_snapcount_stats',
+                                                                two_teams=False)
+
+    home_team_drive_stats = get_drive_stats(home_team_drives_div)
+    away_team_drive_stats = get_drive_stats(away_team_drives_div)
 
     # add more individual stats
     match_info = {**scorebox_info, **additional_info}
+    match_info = {**match_info, **team_stats}
     match_info = {**match_info, **offense_player_stats}
     match_info = {**match_info, **defense_player_stats}
     match_info = {**match_info, **pass_stats}
     match_info = {**match_info, **rush_direction_stats}
     match_info = {**match_info, **pass_tackle_stats}
     match_info = {**match_info, **rush_tackle_stats}
+    match_info = {**match_info, **home_team_snapcount_stats}
+    match_info = {**match_info, **away_team_snapcount_stats}
+    match_info = {**match_info, **home_team_drive_stats}
+    match_info = {**match_info, **away_team_drive_stats}
 
     return match_info
 
