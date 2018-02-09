@@ -5,6 +5,7 @@ import time
 import re
 import pprint
 import threading
+import json
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -13,7 +14,9 @@ THREADNUM = 8
 LINK = 'http://www.pro-football-reference.com'
 MATCHWEEK_LINK = LINK + '/years/{YEAR}/week_{WEEK}.htm'
 
-YEARS = range(2013, 2018)
+
+filename = '2017_regular_season'
+YEARS = range(2017, 2018)
 WEEKS = range(1,18)
 
 
@@ -86,7 +89,7 @@ def get_player_stats_from_rows(rows):
     for statline in rows:
         name_group = re.match('.*<a href=\"/players/./(.*).htm\">(.*)</a>.*', statline)
         id, name = name_group.group(1), name_group.group(2)
-        stats = re.findall('<td class=\"right \" data-stat=\"(.*?)\" >([0-9\.]*?)</td>', statline)
+        stats = re.findall('<td class=\"right \" data-stat=\"(.*?)\" >([\-\%0-9\.]*?)</td>', statline)
         stats_list.append({'player_id': id, 'player_name': name, 'stats': dict(stats)})
     return stats_list
 
@@ -130,7 +133,8 @@ def get_team_stats(stats):
         stat_line = re.match('.*data-stat=\"stat\" >(.*?)</th>.*data-stat=\"vis_stat\" >'
                              '(.*?)</td>.*data-stat=\"home_stat\" >(.*)</td></tr>', row)\
             .groups()
-        team_stats[stat_line[0]] = {'away_team': stat_line[1], 'home_team': stat_line[2]}
+        team_stats[stat_line[0].lower().replace(' ', '_')] =\
+            {'away_team': stat_line[1], 'home_team': stat_line[2]}
     return team_stats
 
 def get_data_from_match(match_link):
@@ -173,7 +177,9 @@ def get_data_from_match(match_link):
                                                                 two_teams=False)
 
     home_team_drive_stats = get_drive_stats(home_team_drives_div)
+    home_team_drive_stats = {'home_team_drives': home_team_drive_stats}
     away_team_drive_stats = get_drive_stats(away_team_drives_div)
+    away_team_drive_stats = {'away_team_drives': away_team_drive_stats}
 
     # add more individual stats
     match_info = {**scorebox_info, **additional_info}
@@ -226,7 +232,7 @@ for year, week in product(YEARS, WEEKS):
     print('%s Week %s Done.' % (year, week))
 
 
-with open('2017_regular_season.data', 'w+') as out_file:
+with open(filename + '.data', 'w+') as out_file:
     pp = pprint.PrettyPrinter(indent=4, stream=out_file)
     pp.pprint(all_matches)
 print(time.time()-start_time)
